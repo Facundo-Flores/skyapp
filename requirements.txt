@@ -3,3 +3,4 @@ matplotlib
 numpy
 astropy
 streamlit-geolocation
+streamlit-autorefresh
