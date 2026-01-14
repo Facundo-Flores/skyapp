@@ -1,0 +1,5 @@
+streamlit
+matplotlib
+numpy
+astropy
+streamlit-geolocation
