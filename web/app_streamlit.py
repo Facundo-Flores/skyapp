@@ -179,8 +179,8 @@ with st.sidebar:
     st.markdown('<div class="muted">Mapa estelar visible desde tu ubicación</div>', unsafe_allow_html=True)
 
     # CTA SIEMPRE VISIBLE (arriba)
-    generate = st.button("Generar ahora", type="primary", use_container_width=True, key="generate_btn")
-    auto = st.toggle("Auto-refrescar (10s)", value=False, key="auto_refresh_toggle")
+    generate = st.button("Generar mapa", type="primary", use_container_width=True, key="generate_btn")
+    auto = st.toggle("Actualizar automático (10s)", value=False, key="auto_refresh_toggle")
 
     st.markdown("<div style='height:0.35rem'></div>", unsafe_allow_html=True)
 
