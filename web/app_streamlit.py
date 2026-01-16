@@ -1,13 +1,12 @@
+# web/app_streamlit.py
 from __future__ import annotations
-
 from pathlib import Path
 import sys
 import io
-
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import streamlit as st
-from streamlit_autorefresh import st_autorefresh
 import matplotlib.pyplot as plt
-
 import astropy.units as u
 from astropy.time import Time
 from astropy.coordinates import EarthLocation
@@ -15,47 +14,49 @@ from astropy.coordinates import EarthLocation
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+from core.sky_core import compute_altaz, make_figure, MAGS  # noqa: E402
 
-from core.sky_core import compute_altaz, make_figure  # noqa: E402
-
+# Geolocalización (opcional)
 try:
     from streamlit_geolocation import streamlit_geolocation
+
     GEO_OK = True
 except Exception:
     GEO_OK = False
 
+# Autorefresh (opcional)
+try:
+    from streamlit_autorefresh import st_autorefresh
 
-def fmt_ar_from_time(t_utc: Time) -> str:
-    t_art = t_utc - 3 * u.hour
-    return t_art.datetime.strftime("%d-%m-%Y, %H:%M:%S") + " (UTC-3)"
+    AUTOREFRESH_OK = True
+except Exception:
+    AUTOREFRESH_OK = False
+
+TZ_AR = ZoneInfo("America/Argentina/Buenos_Aires")
 
 
-def set_css(mode: str) -> None:
+def fmt_ar(dt: datetime) -> str:
+    return dt.astimezone(TZ_AR).strftime("%d-%m-%Y %H:%M:%S")
 
-    if mode == "light":
-        bg = "#F6F7FB"
-        panel = "#FFFFFF"
-        text = "#101828"
-        muted = "#475467"
-        border = "rgba(16, 24, 40, 0.12)"
-        primary_a = "#2563EB"
-        primary_b = "#1D4ED8"
-        shadow = "0 10px 24px rgba(16,24,40,0.10)"
-        field_bg = "rgba(16,24,40,0.03)"
-    else:
-        bg = "#0B1020"
-        panel = "rgba(255,255,255,0.045)"
-        text = "#EEF2FF"
-        muted = "rgba(238,242,255,0.78)"
-        border = "rgba(255,255,255,0.12)"
-        primary_a = "#4F8CFF"
-        primary_b = "#2F6BFF"
-        shadow = "0 14px 30px rgba(0,0,0,0.38)"
-        field_bg = "rgba(255,255,255,0.06)"
+
+def set_astro_theme() -> None:
+    # Tema más pro y astronómico: fondo espacial, gradients, shadows, fonts
+    bg = "#020308"  # Espacio negro
+    panel = "rgba(55, 48, 163, 0.15)"  # Morado traslúcido
+    text = "#E0E7FF"  # Blanco azulado
+    muted = "#A5B4FC"  # Azul muted
+    border = "rgba(165, 180, 252, 0.2)"  # Borde índigo
+    primary_a = "#6366F1"  # Índigo
+    primary_b = "#4F46E5"  # Índigo oscuro
+    shadow = "0 14px 30px rgba(0,0,0,0.5)"  # Sombra profunda
+    field_bg = "rgba(55, 48, 163, 0.2)"
+    accent = "#A5B4FC"  # Azul para acentos
 
     st.markdown(
         f"""
         <style>
+          @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
           .block-container {{
             padding-top: 0.9rem !important;
             padding-bottom: 1rem !important;
@@ -63,11 +64,11 @@ def set_css(mode: str) -> None:
             padding-right: 1.1rem !important;
             max-width: 1400px;
           }}
-
-          [data-testid="stAppViewContainer"] {{ background: {bg}; }}
+          [data-testid="stAppViewContainer"] {{
+            background: {bg};
+            background-image: radial-gradient(circle at 50% 50%, rgba(165,180,252,0.1) 0%, rgba(2,3,8,0) 60%);
+          }}
           .stAppHeader {{ background: transparent; }}
-
-          /* Sidebar compacto */
           [data-testid="stSidebar"] {{
             background: {bg};
             border-right: 1px solid {border};
@@ -76,226 +77,223 @@ def set_css(mode: str) -> None:
             padding-top: 0.75rem !important;
             padding-left: 0.8rem !important;
             padding-right: 0.8rem !important;
-            padding-bottom: 6.6rem !important; /* espacio para footer fijo */
+            padding-bottom: 1rem !important;
           }}
-
-          /* Tipografía / contraste */
-          h1,h2,h3,h4,p,span,label {{ color: {text} !important; }}
+          h1,h2,h3,h4 {{ 
+            color: {text} !important; 
+            font-family: 'Orbitron', sans-serif; 
+          }}
+          p,span,label {{ color: {text} !important; }}
           .muted {{ color: {muted}; font-size: 0.92rem; }}
           .tiny {{ color: {muted}; font-size: 0.85rem; }}
-
-          /* Reducir espacios entre widgets */
           .element-container {{ margin-bottom: 0.42rem !important; }}
-
-          /* Cards */
           .card {{
             background: {panel};
             border: 1px solid {border};
-            border-radius: 14px;
-            padding: 10px 10px;
+            border-radius: 16px;
+            padding: 12px;
             box-shadow: {shadow};
           }}
-
-          /* Inputs */
-          .stNumberInput input, .stTextInput input {{
+          .plot-wrap {{
+            background: {panel};
+            border: 1px solid {border};
+            border-radius: 20px;
+            padding: 12px;
+            box-shadow: {shadow};
+          }}
+          .stNumberInput input, .stTextInput input, .stDateInput input, .stTimeInput input {{
             background: {field_bg} !important;
             color: {text} !important;
             border: 1px solid {border} !important;
             border-radius: 12px !important;
           }}
-
-          /* Botón primary más visible */
           .stButton>button[kind="primary"] {{
             background: linear-gradient(90deg, {primary_a}, {primary_b}) !important;
             border: 0 !important;
             color: white !important;
-            font-weight: 900 !important;
+            font-weight: 700 !important;
             border-radius: 14px !important;
             padding: 0.75rem 0.9rem !important;
+            font-family: 'Orbitron', sans-serif;
           }}
-
-          /* Footer fijo dentro del sidebar */
-          .sidebar-footer {{
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 320px;  /* ajusta si ves desalineado */
-            padding: 0.75rem 0.85rem;
-            background: linear-gradient(180deg, rgba(0,0,0,0), {bg} 35%);
-            border-top: 1px solid {border};
-            z-index: 9999;
-          }}
-          .footer-card {{
-            background: {panel};
+          .stDataFrame {{ 
             border: 1px solid {border};
-            border-radius: 14px;
-            padding: 10px;
-            box-shadow: {shadow};
+            border-radius: 12px;
+            overflow: hidden;
           }}
-
-          /* Plot wrapper */
-          .plot-wrap {{
-            background: {panel};
-            border: 1px solid {border};
-            border-radius: 16px;
-            padding: 10px 10px;
-            box-shadow: {shadow};
-          }}
-          
-          
+          .stRadio > div > label {{ color: {accent}; }}
+          .stToggle > label {{ color: {accent}; }}
         </style>
         """,
         unsafe_allow_html=True,
     )
 
 
+# -------------------------
+# Page config
+# -------------------------
+st.set_page_config(page_title="SkyMap— Mapa Celestial", layout="wide", initial_sidebar_state="expanded")
+set_astro_theme()
 
+# Session defaults con más opciones pro
+st.session_state.setdefault("place_label", "Vicente López, Buenos Aires")
+st.session_state.setdefault("lat", -34.51)
+st.session_state.setdefault("lon", -58.48)
+st.session_state.setdefault("alt", 22.0)
+st.session_state.setdefault("time_mode", "Ahora")
+st.session_state.setdefault("selected_dt_ar", datetime.now(TZ_AR))
+st.session_state.setdefault("show_horizon", True)
+st.session_state.setdefault("selected_objects", list(MAGS.keys()))
 
 # -------------------------
-# Page
-# -------------------------
-st.set_page_config(page_title="Mapa estelar", layout="wide", initial_sidebar_state="expanded")
-
-# Session defaults
-if "ui_theme" not in st.session_state:
-    st.session_state.ui_theme = "dark"
-if "place_label" not in st.session_state:
-    st.session_state.place_label = "Vicente López, Buenos Aires"
-if "lat" not in st.session_state:
-    st.session_state.lat = -34.51
-if "lon" not in st.session_state:
-    st.session_state.lon = -58.48
-if "alt" not in st.session_state:
-    st.session_state.alt = 22.0
-
-# Aplicar CSS con el tema actual (antes de render masivo)
-set_css(st.session_state.ui_theme)
-
-# -------------------------
-# Sidebar (UN SOLO BLOQUE)
+# Sidebar mejorado: tabs para config
 # -------------------------
 with st.sidebar:
-    st.markdown("### ✨ SkyApp")
-    st.markdown('<div class="muted">Mapa estelar visible desde tu ubicación</div>', unsafe_allow_html=True)
+    st.markdown("### 🌌 SkyMap")
+    st.markdown('<div class="muted">Mapa interactivo del cielo: Sol, Luna y planetas desde tu ubicación.</div>',
+                unsafe_allow_html=True)
 
-    # CTA SIEMPRE VISIBLE (arriba)
-    generate = st.button("Generar mapa", type="primary", use_container_width=True, key="generate_btn")
-    auto = st.toggle("Actualizar automático (10s)", value=False, key="auto_refresh_toggle")
+    tab1, tab2 = st.tabs(["📍 Ubicación", "⏱️ Tiempo"])
 
-    st.markdown("<div style='height:0.35rem'></div>", unsafe_allow_html=True)
+    with tab1:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        mode = st.radio("Modo de ubicación", ["Navegador", "Manual"], horizontal=True, label_visibility="collapsed")
+        lat = st.session_state.lat
+        lon = st.session_state.lon
+        if mode == "Navegador":
+            use_geo = st.toggle("Usar mi ubicación", value=True, disabled=not GEO_OK)
+            if use_geo and GEO_OK:
+                loc = streamlit_geolocation()
+                if loc and loc.get("latitude") and loc.get("longitude"):
+                    lat = float(loc["latitude"])
+                    lon = float(loc["longitude"])
+                    st.markdown(f'<div class="tiny">📍 {lat:.5f}, {lon:.5f}</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<div class="tiny">Permití ubicación en el navegador.</div>', unsafe_allow_html=True)
+            elif not GEO_OK:
+                st.markdown('<div class="tiny">Geolocalización no disponible.</div>', unsafe_allow_html=True)
+            with st.expander("Ajuste manual", expanded=False):
+                lat = st.number_input("Latitud (°)", value=float(lat), format="%.6f")
+                lon = st.number_input("Longitud (°)", value=float(lon), format="%.6f")
+        else:
+            lat = st.number_input("Latitud (°)", value=float(lat), format="%.6f")
+            lon = st.number_input("Longitud (°)", value=float(lon), format="%.6f")
+        alt = st.number_input("Altitud (m)", value=float(st.session_state.alt), format="%.1f")
+        place_label = st.text_input("Etiqueta del lugar", value=st.session_state.place_label)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # Apariencia
+    with tab2:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        time_mode = st.radio("Modo de tiempo", ["Ahora", "Personalizado"], horizontal=True)
+        selected_dt_ar = st.session_state.selected_dt_ar
+        if time_mode == "Personalizado":
+            date_part = st.date_input("Fecha", value=selected_dt_ar.date())
+            time_part = st.time_input("Hora", value=selected_dt_ar.time())
+            selected_dt_ar = datetime.combine(date_part, time_part).replace(tzinfo=TZ_AR)
+        st.markdown("</div>", unsafe_allow_html=True)
+
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("**Apariencia**")
-    ui_theme = st.radio(
-        "Tema UI",
-        ["dark", "light"],
-        horizontal=True,
-        index=0 if st.session_state.ui_theme == "dark" else 1,
-        label_visibility="collapsed",
-        key="ui_theme_radio",
+    st.markdown("**Visualización**")
+    st.session_state.show_horizon = st.toggle("Mostrar horizonte", value=st.session_state.show_horizon)
+    st.session_state.selected_objects = st.multiselect(
+        "Objetos a mostrar",
+        options=list(MAGS.keys()),
+        default=st.session_state.selected_objects
     )
-    st.session_state.ui_theme = ui_theme
+    auto = st.toggle("Actualizar automático (cada 10 s)", value=False)
+    if auto and not AUTOREFRESH_OK:
+        st.info("Instalá `streamlit-autorefresh` para esta función.")
+    apply_btn = st.button("Aplicar cambios", type="primary", use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Aplicar CSS si cambió el tema
-    set_css(st.session_state.ui_theme)
-    plot_theme = st.session_state.ui_theme
+# Aplicar cambios
+if apply_btn:
+    st.session_state.lat = float(lat)
+    st.session_state.lon = float(lon)
+    st.session_state.alt = float(alt)
+    st.session_state.place_label = (place_label or "").strip()
+    st.session_state.time_mode = time_mode
+    st.session_state.selected_dt_ar = selected_dt_ar
+    st.rerun()
 
-    # Ubicación
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("**Ubicación**")
-
-    mode = st.radio("Modo", ["Navegador", "Manual"], horizontal=True, label_visibility="collapsed", key="mode_radio")
-
-    if mode == "Navegador":
-        use_geo = st.toggle("Usar mi ubicación", value=True, disabled=not GEO_OK, key="use_geo_toggle")
-        if use_geo and GEO_OK:
-            loc = streamlit_geolocation()
-            if loc and loc.get("latitude") and loc.get("longitude"):
-                st.session_state.lat = float(loc["latitude"])
-                st.session_state.lon = float(loc["longitude"])
-                st.markdown(
-                    f'<div class="tiny">📍 {st.session_state.lat:.5f}, {st.session_state.lon:.5f}</div>',
-                    unsafe_allow_html=True
-                )
-            else:
-                st.markdown('<div class="tiny">Permití ubicación en el navegador.</div>', unsafe_allow_html=True)
-        elif not GEO_OK:
-            st.markdown('<div class="tiny">Geolocalización no disponible.</div>', unsafe_allow_html=True)
-
-        with st.expander("Ajuste manual", expanded=False):
-            st.session_state.lat = st.number_input("Latitud (°)", value=float(st.session_state.lat), format="%.6f", key="lat_manual_exp")
-            st.session_state.lon = st.number_input("Longitud (°)", value=float(st.session_state.lon), format="%.6f", key="lon_manual_exp")
-    else:
-        st.session_state.lat = st.number_input("Latitud (°)", value=float(st.session_state.lat), format="%.6f", key="lat_manual")
-        st.session_state.lon = st.number_input("Longitud (°)", value=float(st.session_state.lon), format="%.6f", key="lon_manual")
-
-    st.session_state.alt = st.number_input("Altitud (m)", value=float(st.session_state.alt), format="%.1f", key="alt_input")
-    st.session_state.place_label = st.text_input("Etiqueta del lugar", value=st.session_state.place_label, key="place_label_input")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-# Auto refresh
-if auto:
+# Autorefresco
+if auto and AUTOREFRESH_OK:
     st_autorefresh(interval=10_000, key="auto_refresh")
 
-# Render inicial
-if "has_rendered" not in st.session_state:
-    st.session_state.has_rendered = True
-    generate = True
-
 # -------------------------
-# Main
+# Main: layout más pro, con tabs para vistas
 # -------------------------
-t_utc = Time.now()
 lat = float(st.session_state.lat)
 lon = float(st.session_state.lon)
 alt = float(st.session_state.alt)
 place = (st.session_state.place_label or "").strip()
 title_place = place if place else f"{lat:.4f}, {lon:.4f}"
 
-st.markdown(f"# Mapa estelar visible — {title_place}")
-st.markdown(f'<div class="muted">Actualizado: {fmt_ar_from_time(t_utc)} • Tema: {plot_theme}</div>', unsafe_allow_html=True)
+# Tiempo
+if st.session_state.time_mode == "Ahora":
+    dt_ar = datetime.now(TZ_AR)
+else:
+    dt_in = st.session_state.selected_dt_ar
+    dt_ar = dt_in if dt_in.tzinfo else dt_in.replace(tzinfo=TZ_AR)
+t_utc = dt_ar.astimezone(ZoneInfo("UTC"))
+t_astropy = Time(t_utc)
 
-c1, c2 = st.columns([1, 2.2], gap="large")
+st.markdown(f"# 🌌 SkyMap — {title_place}")
+st.markdown(
+    f'<div class="muted">Hora Argentina: {fmt_ar(dt_ar)} • Modo: <b>{st.session_state.time_mode}</b></div>',
+    unsafe_allow_html=True
+)
 
-with c1:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### Estado")
-    st.metric("Hora Argentina", fmt_ar_from_time(t_utc))
-    st.markdown(f"**Lat/Lon/Alt**  \n`{lat:.6f}, {lon:.6f}, {alt:.1f} m`")
-    if place:
-        st.markdown(f"**Lugar**  \n`{place}`")
+main_tab1, main_tab2 = st.tabs(["🗺️ Mapa", "📊 Datos"])
+
+with main_tab1:
+    location = EarthLocation(lat=lat * u.deg, lon=lon * u.deg, height=alt * u.m)
+    altaz, _ = compute_altaz(t_astropy, location, nombres=st.session_state.selected_objects)
+    plot_title = f"Cielo visible — {fmt_ar(dt_ar)}"
+    fig = make_figure(altaz, title=plot_title, mostrar_horizonte=st.session_state.show_horizon)
+    fig.set_size_inches(8, 8)  # Más grande para pro
+    preview = io.BytesIO()
+    fig.savefig(preview, format="png", dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
+    preview.seek(0)
+    download = io.BytesIO()
+    fig.savefig(download, format="png", dpi=300, bbox_inches="tight", facecolor=fig.get_facecolor())  # Mayor DPI
+    download.seek(0)
+    plt.close(fig)
+    st.markdown('<div class="plot-wrap">', unsafe_allow_html=True)
+    st.image(preview.getvalue(), use_container_width=True)
+    fname = f"astroview_{dt_ar.strftime('%Y%m%d_%H%M%S')}.png"
+    st.download_button("⬇️ Descargar PNG (Alta Res)", data=download, file_name=fname, mime="image/png",
+                       use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-with c2:
-    if generate or auto:
+with main_tab2:
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown("### Estado actual")
+        st.metric("Hora (Argentina)", fmt_ar(dt_ar))
+        st.markdown(f"**Lat/Lon/Alt** \n`{lat:.6f}, {lon:.6f}, {alt:.1f} m`")
+        if place:
+            st.markdown(f"**Lugar** \n`{place}`")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with c2:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown("### Objetos celestes")
         location = EarthLocation(lat=lat * u.deg, lon=lon * u.deg, height=alt * u.m)
-        t_now = Time.now()  # siempre ahora
-        altaz = compute_altaz(t_now, location)
-
-        plot_title = f"Cielo visible — {fmt_ar_from_time(t_now)}"
-        fig = make_figure(altaz, title=plot_title, theme=plot_theme)
-        fig.set_size_inches(6.0, 6.0)
-
-        preview = io.BytesIO()
-        fig.savefig(preview, format="png", dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
-        preview.seek(0)
-
-        download = io.BytesIO()
-        fig.savefig(download, format="png", dpi=240, bbox_inches="tight", facecolor=fig.get_facecolor())
-        download.seek(0)
-
-        plt.close(fig)
-
-        st.markdown('<div class="plot-wrap">', unsafe_allow_html=True)
-        st.image(preview.getvalue(), use_container_width=True)
-
-        st.download_button(
-            "⬇️ Descargar PNG",
-            data=download,
-            file_name=f"cielo_{(t_now - 3*u.hour).datetime.strftime('%Y%m%d_%H%M%S')}.png",
-            mime="image/png",
-        )
+        _, table = compute_altaz(t_astropy, location, nombres=st.session_state.selected_objects)
+        rows = [
+            {
+                "Objeto": o.nombre,
+                "Altura (°)": round(o.alt_deg, 2),
+                "Azimut (°)": round(o.az_deg, 2),
+                "Magnitud": o.mag,
+                "Visible": "Sí" if o.visible else "No",
+            }
+            for o in table
+        ]
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+        st.markdown(
+            '<div class="tiny">Azimut: 0° Norte, 90° Este, 180° Sur, 270° Oeste. Magnitud: menor = más brillante.</div>',
+            unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
