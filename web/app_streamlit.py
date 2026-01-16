@@ -40,64 +40,55 @@ def fmt_ar(dt: datetime) -> str:
 
 
 def set_astro_theme() -> None:
-    # Tema más pro y astronómico: fondo espacial, gradients, shadows, fonts
-    bg = "#020308"  # Espacio negro
-    panel = "rgba(55, 48, 163, 0.15)"  # Morado traslúcido
-    text = "#E0E7FF"  # Blanco azulado
-    muted = "#A5B4FC"  # Azul muted
-    border = "rgba(165, 180, 252, 0.2)"  # Borde índigo
-    primary_a = "#6366F1"  # Índigo
-    primary_b = "#4F46E5"  # Índigo oscuro
-    shadow = "0 14px 30px rgba(0,0,0,0.5)"  # Sombra profunda
-    field_bg = "rgba(55, 48, 163, 0.2)"
-    accent = "#A5B4FC"  # Azul para acentos
+    bg = "#0A0E1A"              # Azul noche muy oscuro
+    panel = "rgba(30, 41, 59, 0.45)"  # Slate oscuro semi-transparente
+    text = "#E2E8F0"            # Gris claro suave
+    muted = "#94A3B8"           # Gris medio para secundario
+    border = "rgba(148, 163, 184, 0.25)"
+    primary_a = "#6366F1"       # Índigo principal
+    primary_b = "#4F46E5"       # Índigo más oscuro
+    shadow = "0 10px 25px rgba(0,0,0,0.45)"
+    field_bg = "rgba(30, 41, 59, 0.6)"
+    accent = "#CBD5E1"
 
     st.markdown(
         f"""
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap');
 
-          .block-container {{
-            padding-top: 0.9rem !important;
-            padding-bottom: 1rem !important;
-            padding-left: 1.1rem !important;
-            padding-right: 1.1rem !important;
-            max-width: 1400px;
-          }}
+          .block-container {{ padding: 1rem 1.2rem !important; max-width: 1400px; }}
           [data-testid="stAppViewContainer"] {{
             background: {bg};
-            background-image: radial-gradient(circle at 50% 50%, rgba(165,180,252,0.1) 0%, rgba(2,3,8,0) 60%);
+            background-image: radial-gradient(circle at 10% 20%, rgba(99,102,241,0.08) 0%, transparent 50%);
           }}
           .stAppHeader {{ background: transparent; }}
           [data-testid="stSidebar"] {{
             background: {bg};
             border-right: 1px solid {border};
           }}
-          [data-testid="stSidebar"] .block-container {{
-            padding-top: 0.75rem !important;
-            padding-left: 0.8rem !important;
-            padding-right: 0.8rem !important;
-            padding-bottom: 1rem !important;
+          h1, h2, h3, h4 {{
+            color: {text} !important;
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 0.5px;
           }}
-          h1,h2,h3,h4 {{ 
-            color: {text} !important; 
-            font-family: 'Orbitron', sans-serif; 
+          p, span, label, div {{
+            color: {text} !important;
+            font-family: 'Roboto Mono', monospace;
           }}
-          p,span,label {{ color: {text} !important; }}
-          .muted {{ color: {muted}; font-size: 0.92rem; }}
-          .tiny {{ color: {muted}; font-size: 0.85rem; }}
-          .element-container {{ margin-bottom: 0.42rem !important; }}
+          .muted {{ color: {muted}; font-size: 0.90rem; }}
+          .tiny {{ color: {muted}; font-size: 0.82rem; }}
           .card {{
             background: {panel};
             border: 1px solid {border};
-            border-radius: 16px;
-            padding: 12px;
+            border-radius: 14px;
+            padding: 14px 16px;
             box-shadow: {shadow};
+            margin-bottom: 1rem;
           }}
           .plot-wrap {{
             background: {panel};
             border: 1px solid {border};
-            border-radius: 20px;
+            border-radius: 18px;
             padding: 12px;
             box-shadow: {shadow};
           }}
@@ -105,24 +96,28 @@ def set_astro_theme() -> None:
             background: {field_bg} !important;
             color: {text} !important;
             border: 1px solid {border} !important;
-            border-radius: 12px !important;
+            border-radius: 10px !important;
           }}
-          .stButton>button[kind="primary"] {{
+          .stButton > button[kind="primary"] {{
             background: linear-gradient(90deg, {primary_a}, {primary_b}) !important;
-            border: 0 !important;
             color: white !important;
-            font-weight: 700 !important;
-            border-radius: 14px !important;
-            padding: 0.75rem 0.9rem !important;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 500 !important;
+            border-radius: 12px !important;
+            padding: 0.7rem 1rem !important;
+          }}
+          .stTabs [data-baseweb="tab-list"] {{
+            gap: 1rem;
+            background: transparent;
+          }}
+          .stTabs [data-baseweb="tab"] {{
+            color: {muted} !important;
             font-family: 'Orbitron', sans-serif;
           }}
-          .stDataFrame {{ 
-            border: 1px solid {border};
-            border-radius: 12px;
-            overflow: hidden;
+          .stTabs [aria-selected="true"] {{
+            color: {text} !important;
+            border-bottom-color: {primary_a} !important;
           }}
-          .stRadio > div > label {{ color: {accent}; }}
-          .stToggle > label {{ color: {accent}; }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -227,7 +222,6 @@ lat = float(st.session_state.lat)
 lon = float(st.session_state.lon)
 alt = float(st.session_state.alt)
 place = (st.session_state.place_label or "").strip()
-title_place = place if place else f"{lat:.4f}, {lon:.4f}"
 
 # Tiempo
 if st.session_state.time_mode == "Ahora":
@@ -238,7 +232,12 @@ else:
 t_utc = dt_ar.astimezone(ZoneInfo("UTC"))
 t_astropy = Time(t_utc)
 
-st.markdown(f"# 🌌 SkyMap — {title_place}")
+if place and place.strip():
+    header_title = f"SkyMap - {place}"
+else:
+    header_title = f"SkyMap - {lat:.4f}°S, {lon:.4f}°O"
+
+st.markdown(f"# 🌌 {header_title}")
 st.markdown(
     f'<div class="muted">Hora Argentina: {fmt_ar(dt_ar)} • Modo: <b>{st.session_state.time_mode}</b></div>',
     unsafe_allow_html=True
