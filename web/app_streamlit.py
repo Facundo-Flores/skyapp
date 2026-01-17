@@ -1,8 +1,12 @@
 # web/app_streamlit.py
 from __future__ import annotations
 from pathlib import Path
+
 import sys
 import io
+import os
+import requests
+
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import streamlit as st
@@ -37,6 +41,64 @@ TZ_AR = ZoneInfo("America/Argentina/Buenos_Aires")
 
 def fmt_ar(dt: datetime) -> str:
     return dt.astimezone(TZ_AR).strftime("%d-%m-%Y %H:%M:%S")
+
+def get_bdc_key() -> str | None:
+    # 1- secrets, 2- env
+    key = None
+    try:
+        key = st.secrets.get("BIGDATACLOUD_API_KEY", None)
+    except Exception:
+        key = None
+    return key or os.environ.get("BIGDATACLOUD_API_KEY")
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def reverse_geocode_bigdatacloud(lat_q: float, lon_q: float, locality_language: str = "es") -> dict:
+    """
+    Reverse geocode usando BigDataCloud (server-side, requiere API key).
+    Cacheado 24h para ahorrar cuota.
+    """
+    key = get_bdc_key()
+    if not key:
+        raise RuntimeError("Falta BIGDATACLOUD_API_KEY (st.secrets o variable de entorno).")
+
+    url = "https://api-bdc.net/data/reverse-geocode"
+    params = {
+        "latitude": lat_q,
+        "longitude": lon_q,
+        "localityLanguage": locality_language,
+        "key": key,
+    }
+
+    # Timeout corto para no colgar la app si el servicio está lento
+    r = requests.get(url, params=params, timeout=5)
+    r.raise_for_status()
+    return r.json()
+
+
+def build_place_label(payload: dict) -> str:
+    """
+    Arma una etiqueta “humana” a partir del JSON de BigDataCloud.
+    No asumimos campos exactos: elegimos lo más común y hacemos fallback.
+    """
+    # BigDataCloud suele devolver algo como:
+    # locality / city / principalSubdivision / countryName, etc.
+    locality = (
+        payload.get("locality")
+        or payload.get("city")
+        or payload.get("localityInfo", {}).get("administrative", [{}])[0].get("name")
+        or ""
+    )
+    province = payload.get("principalSubdivision") or ""
+    country = payload.get("countryName") or ""
+
+    parts = [p.strip() for p in [locality, province, country] if p and str(p).strip()]
+    label = ", ".join(parts)
+
+    # Fallback adicional
+    if not label:
+        label = payload.get("localityInfo", {}).get("informative", [{}])[0].get("name", "")
+
+    return label.strip()
 
 
 def set_astro_theme() -> None:
@@ -131,7 +193,9 @@ st.set_page_config(page_title="SkyMap— Mapa Celestial", layout="wide", initial
 set_astro_theme()
 
 # Session defaults con más opciones pro
-st.session_state.setdefault("place_label", "Vicente López, Buenos Aires")
+st.session_state.setdefault("place_label", "")
+st.session_state.setdefault("place_label_user_edite", False)
+st.session_state.setdefault("place_label_source", "auto")
 st.session_state.setdefault("lat", -34.51)
 st.session_state.setdefault("lon", -58.48)
 st.session_state.setdefault("alt", 22.0)
@@ -162,6 +226,27 @@ with st.sidebar:
                 if loc and loc.get("latitude") and loc.get("longitude"):
                     lat = float(loc["latitude"])
                     lon = float(loc["longitude"])
+                    # Autolabel (solo si el usuario no lo editó)
+                    if not st.session_state.get("place_label_user_edited", False):
+                        try:
+                            # Redondeo anti-jitter + cache-friendly
+                            lat_q = round(lat, 3)
+                            lon_q = round(lon, 3)
+
+                            payload = reverse_geocode_bigdatacloud(lat_q, lon_q, locality_language="es")
+                            auto_label = build_place_label(payload)
+
+                            # Si obtuvimos algo razonable, lo seteamos
+                            if auto_label:
+                                st.session_state.place_label = auto_label
+                                st.session_state.place_label_source = "auto"
+                            else:
+                                # si no hay label, dejamos vacío para que el título use coords
+                                st.session_state.place_label = ""
+                                st.session_state.place_label_source = "auto"
+                        except Exception:
+                            # Silencioso: no interrumpimos la app por la etiqueta
+                            st.session_state.place_label_source = "auto"
                     st.markdown(f'<div class="tiny">📍 {lat:.5f}, {lon:.5f}</div>', unsafe_allow_html=True)
                 else:
                     st.markdown('<div class="tiny">Permití ubicación en el navegador.</div>', unsafe_allow_html=True)
@@ -174,7 +259,11 @@ with st.sidebar:
             lat = st.number_input("Latitud (°)", value=float(lat), format="%.6f")
             lon = st.number_input("Longitud (°)", value=float(lon), format="%.6f")
         alt = st.number_input("Altitud (m)", value=float(st.session_state.alt), format="%.1f")
-        place_label = st.text_input("Etiqueta del lugar", value=st.session_state.place_label)
+        place_label = st.text_input(
+            "Etiqueta del lugar",
+            value=st.session_state.place_label,
+            help="Si la dejás vacía, la app intenta poner una etiqueta automática según tu ubicación."
+        )
         st.markdown("</div>", unsafe_allow_html=True)
 
     with tab2:
@@ -202,11 +291,17 @@ with st.sidebar:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # Aplicar cambios
+new_label = (place_label or "").strip()
+old_label = (st.session_state.place_label or "").strip()
+
 if apply_btn:
     st.session_state.lat = float(lat)
     st.session_state.lon = float(lon)
     st.session_state.alt = float(alt)
-    st.session_state.place_label = (place_label or "").strip()
+    if new_label and new_label != old_label:
+        st.session_state.place_label_user_edited = True
+        st.session_state.place_label_source = "user"
+    st.session_state.place_label = new_label
     st.session_state.time_mode = time_mode
     st.session_state.selected_dt_ar = selected_dt_ar
     st.rerun()
