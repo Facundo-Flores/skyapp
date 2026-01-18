@@ -46,15 +46,38 @@ def fmt_ar(dt: datetime) -> str:
 
 def detectar_mobile() -> bool:
     """
-    Detecta si el usuario es móvil usando streamlit-browser-engine.
-    Si no está instalado o falla, vuelve False (UI escritorio).
+    Detecta mobile de forma robusta:
+      1) streamlit-browser-engine (si está)
+      2) heurística por User-Agent (fallback)
     """
+    # 1) streamlit-browser-engine
     try:
         from browser_detection import browser_detection_engine
-        info = browser_detection_engine()
-        return bool(info.get("is_mobile", False))
+        info = browser_detection_engine() or {}
+        # algunas versiones usan is_mobile / mobile / device_type, etc.
+        if "is_mobile" in info:
+            return bool(info["is_mobile"])
+        if info.get("device_type"):
+            return str(info["device_type"]).lower() in ("mobile", "tablet")
+        if info.get("is_tablet"):
+            return bool(info.get("is_tablet"))
     except Exception:
-        return False
+        pass
+
+    # 2) Fallback por User-Agent (cuando Streamlit expone headers)
+    try:
+        # Streamlit >= 1.27 aprox tiene st.context.headers (puede variar)
+        ua = ""
+        if hasattr(st, "context") and hasattr(st.context, "headers"):
+            ua = (st.context.headers.get("User-Agent") or st.context.headers.get("user-agent") or "")
+        ua_l = ua.lower()
+        if any(k in ua_l for k in ["android", "iphone", "ipad", "ipod", "mobile", "tablet"]):
+            return True
+    except Exception:
+        pass
+
+    return False
+
 
 
 def get_bdc_key() -> str | None:
@@ -595,6 +618,7 @@ if auto_refresh and AUTOREFRESH_OK:
 # -------------------------
 # Main
 # -------------------------
+
 lat = float(st.session_state.lat)
 lon = float(st.session_state.lon)
 alt = float(st.session_state.alt)
