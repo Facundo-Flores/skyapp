@@ -374,7 +374,7 @@ with st.sidebar:
     if auto and not AUTOREFRESH_OK:
         st.info("Instalá `streamlit-autorefresh` para esta función.")
 
-    apply_btn = st.button("Aplicar cambios", type="primary", use_container_width=True)
+    apply_btn = st.button("Aplicar cambios", type="primary", width='stretch')
     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -482,14 +482,14 @@ with main_tab1:
         f"<h3 style='text-align: center; margin-bottom: 0;'>{plot_title}</h3>",
         unsafe_allow_html=True
     )
-    st.image(preview.getvalue(), use_container_width=True)
+    st.image(preview.getvalue(), width='stretch')
     fname = f"astroview_{dt_ar.strftime('%Y%m%d_%H%M%S')}.png"
     st.download_button(
         "⬇️ Descargar PNG (Alta Res)",
         data=download,
         file_name=fname,
         mime="image/png",
-        use_container_width=True
+        width='stretch',
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -521,7 +521,7 @@ with main_tab2:
             }
             for o in table
         ]
-        st.dataframe(rows, use_container_width=True, hide_index=True)
+        st.dataframe(rows, width='stretch', hide_index=True)
 
         st.markdown(
             '<div class="tiny">Azimut: 0° Norte, 90° Este, 180° Sur, 270° Oeste. Magnitud: menor = más brillante.</div>',
