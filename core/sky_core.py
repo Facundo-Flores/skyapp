@@ -386,11 +386,34 @@ def make_figure(
         points.append({"name": name, "theta": theta, "r": r, "mag": mag, "alt": alt})
 
     # Auto-zoom: encuadra hasta el objeto visible más bajo
+    # Auto-zoom: encuadre "usable" (evita zoom extremo cuando hay pocos objetos o están muy altos)
     if auto_zoom and points:
-        alt_min = min(p["alt"] for p in points)
-        r_needed = 90.0 - alt_min
-        rmax = min(90.0, float(r_needed + zoom_margin_deg))
-        rmax = max(18.0, rmax)
+        alts = [p["alt"] for p in points]
+        alt_min = float(min(alts))  # objeto más cerca del horizonte
+        alt_max = float(max(alts))  # objeto más cerca del zénit
+
+        # r=90-alt => cuanto más alto el objeto, más chico el r
+        r_lowest = 90.0 - alt_min  # radio requerido para incluir al más bajo (cerca del horizonte)
+        r_highest = 90.0 - alt_max  # radio del más alto (cerca del zénit)
+
+        # Base: incluir al más bajo + margen
+        rmax_auto = float(r_lowest + zoom_margin_deg)
+
+        # Si hay pocos objetos, no conviene acercar demasiado:
+        n = len(points)
+        if n <= 1:
+            rmin_auto = 70.0
+        elif n <= 3:
+            rmin_auto = 60.0
+        else:
+            rmin_auto = 35.0
+
+        # Si el objeto más alto está muy cerca del zénit, no "aplastar" el mapa:
+        # (esto evita que un único objeto alto haga que todo se vea minúsculo abajo)
+        if r_highest < 10.0:
+            rmin_auto = max(rmin_auto, 65.0)
+
+        rmax = float(np.clip(max(rmax_auto, rmin_auto), 18.0, 90.0))
 
     # Clamp manual
     rmax = float(np.clip(rmax, 18.0, 90.0))
