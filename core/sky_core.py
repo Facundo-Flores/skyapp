@@ -25,6 +25,8 @@ MAGS: Dict[str, float] = {
     "Marte": 0.5,
     "Júpiter": -2.7,
     "Saturno": 0.8,
+    "Urano": 5.7,
+    "Neptuno": 7.8,
 }
 
 PLANET_COLORS: Dict[str, str] = {
@@ -35,6 +37,8 @@ PLANET_COLORS: Dict[str, str] = {
     "Marte": "#D14B3A",
     "Júpiter": "#D9B38C",
     "Saturno": "#E6D27A",
+    "Urano": "#7FCFD4",
+    "Neptuno": "#4B6EDC",
 }
 
 THEMES = {
@@ -80,6 +84,8 @@ def _objects_gcrs(obstime: Time) -> Dict[str, object]:
             "Marte": get_body("mars", obstime),
             "Júpiter": get_body("jupiter", obstime),
             "Saturno": get_body("saturn", obstime),
+            "Urano": get_body("uranus", obstime),
+            "Neptuno": get_body("neptune", obstime),
         }
 
 
@@ -118,6 +124,90 @@ def _alpha_from_alt(alt_deg: float) -> float:
     return float(np.clip(0.55 + 0.45 * (alt_deg / 90.0), 0.55, 1.0))
 
 
+# -------------------------
+# Starfield (fondo)
+# -------------------------
+def _stars_field(
+    rmax: float,
+    n: int,
+    seed: int,
+    size_min: float,
+    size_max: float,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Genera un campo de 'estrellas' en coordenadas polares (theta, r) dentro del rango visible.
+    r: 0 (zénit) -> rmax (borde visible)
+    """
+    rng = np.random.default_rng(seed)
+
+    theta = rng.uniform(0.0, 2.0 * np.pi, n)
+
+    # r proporcional al área (para que no se acumule cerca del centro)
+    u = rng.uniform(0.0, 1.0, n)
+    r = np.sqrt(u) * rmax
+
+    # tamaños con sesgo a chiquitas
+    s = (rng.uniform(0.0, 1.0, n) ** 2) * (size_max - size_min) + size_min
+
+    return theta, r, s
+
+
+def _draw_stars(
+    ax,
+    t: dict,
+    rmax: float,
+    enabled: bool,
+    density: float,
+    seed: int,
+) -> None:
+    """
+    Dibuja un fondo de estrellas detrás de todo.
+    densidad: 0..1 aprox
+    """
+    if not enabled:
+        return
+
+    # Ajuste: con zoom fuerte (rmax bajo) bajamos el conteo para que no se vea "ruidoso".
+    base = 900
+    zoom_factor = float(np.clip(rmax / 90.0, 0.35, 1.0))
+    n = int(base * float(density) * zoom_factor)
+    n = int(np.clip(n, 150, 1400))
+
+    theta, r, s = _stars_field(
+        rmax=float(rmax),
+        n=n,
+        seed=int(seed),
+        size_min=2.0,
+        size_max=18.0,
+    )
+
+    # Capa tenue
+    ax.scatter(
+        theta,
+        r,
+        s=s,
+        c=t["tick"],
+        alpha=0.10,
+        linewidths=0.0,
+        zorder=0,
+    )
+
+    # Capa principal (solo algunas un poco más visibles)
+    idx = (s > 8.0)
+    ax.scatter(
+        theta[idx],
+        r[idx],
+        s=s[idx] * 0.9,
+        c=t["text"],
+        alpha=0.12,
+        linewidths=0.0,
+        zorder=0,
+    )
+
+
+# -------------------------
+# Labels
+# -------------------------
 def _overlap_area(a: Bbox, b: Bbox) -> float:
     x0 = max(a.x0, b.x0)
     y0 = max(a.y0, b.y0)
@@ -181,11 +271,10 @@ def _place_labels_non_overlapping(
     min_label_sep_px: float,
 ):
     """
-    Coloca etiquetas evitando superposición entre ellas (heurística por candidatos).
+    Ubica etiquetas evitando superposición entre ellas.
     """
     text_fx = [pe.withStroke(linewidth=3, foreground=t["ax_bg"])]
 
-    # Candidatos de offset (en puntos). Probamos varios.
     candidates = [
         (12, 8), (12, -8), (-12, 8), (-12, -8),
         (0, 12), (0, -12),
@@ -195,7 +284,6 @@ def _place_labels_non_overlapping(
 
     placed_bboxes: List[Bbox] = []
 
-    # Necesitamos renderer para medir bboxes
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
 
@@ -206,9 +294,8 @@ def _place_labels_non_overlapping(
 
         best_text = None
         best_bbox = None
-        best_score = None  # menor = mejor (menos overlap total)
+        best_score = None
 
-        # Probamos offsets
         for (dx, dy) in candidates:
             ha = "left" if dx > 0 else ("right" if dx < 0 else "center")
 
@@ -229,14 +316,11 @@ def _place_labels_non_overlapping(
             bb = txt.get_window_extent(renderer=renderer)
             bb2 = _inflate_bbox(bb, min_label_sep_px)
 
-            # Puntaje = suma de áreas de intersección con labels ya puestos
             score = 0.0
             for prev in placed_bboxes:
                 score += _overlap_area(bb2, prev)
 
-            # Elegimos el que menos se superponga
             if best_score is None or score < best_score:
-                # si ya teníamos uno, lo borramos
                 if best_text is not None:
                     best_text.remove()
                 best_text = txt
@@ -245,11 +329,9 @@ def _place_labels_non_overlapping(
             else:
                 txt.remove()
 
-            # Si es perfecto (0 overlap), cortamos
             if best_score == 0.0:
                 break
 
-        # Si quedó (aunque tenga algo de overlap), lo aceptamos
         if best_text is not None and best_bbox is not None:
             placed_bboxes.append(best_bbox)
 
@@ -268,18 +350,16 @@ def make_figure(
     max_etiquetas: int = 6,
     min_sep_px: float = 10.0,
     cluster_px: float = 20.0,
+    # --- Estrellas (fondo)
+    mostrar_estrellas: bool = True,
+    densidad_estrellas: float = 0.75,  # 0..1 aprox
+    seed_estrellas: int = 42,
 ) -> plt.Figure:
     """
     Mapa polar:
       - Norte arriba
       - Azimut crece hacia la derecha (sentido horario)
       - Radio: 0 = Zénit, 90 = Horizonte
-
-    Zoom:
-      - manual: rmax
-      - auto_zoom: calcula rmax según el objeto visible más bajo + margen
-    Etiquetas:
-      - evita superposición y permite declutter.
     """
     t = THEMES.get(theme, THEMES["dark"])
 
@@ -294,21 +374,6 @@ def make_figure(
     ax.spines["polar"].set_color(t["grid"])
     ax.spines["polar"].set_alpha(0.35)
 
-    # Cardianles
-    text_fx = [pe.withStroke(linewidth=3, foreground=t["ax_bg"])]
-    for lab, deg in [("N", 0), ("E", 90), ("S", 180), ("O", 270)]:
-        ax.text(
-            np.deg2rad(deg),
-            92.0,
-            lab,
-            ha="center",
-            va="center",
-            fontsize=10.5,
-            color=t["tick"],
-            path_effects=text_fx,
-            zorder=5,
-        )
-
     # Armamos lista de puntos visibles
     points: List[dict] = []
     for name, c in altaz_dict.items():
@@ -322,13 +387,23 @@ def make_figure(
 
     # Auto-zoom: encuadra hasta el objeto visible más bajo
     if auto_zoom and points:
-        alt_min = min(p["alt"] for p in points)  # más cerca del horizonte
+        alt_min = min(p["alt"] for p in points)
         r_needed = 90.0 - alt_min
         rmax = min(90.0, float(r_needed + zoom_margin_deg))
-        rmax = max(18.0, rmax)  # evita zoom extremo que rompe ticks
+        rmax = max(18.0, rmax)
 
     # Clamp manual
     rmax = float(np.clip(rmax, 18.0, 90.0))
+
+    # Fondo: estrellas (antes de todo)
+    _draw_stars(
+        ax=ax,
+        t=t,
+        rmax=float(rmax),
+        enabled=bool(mostrar_estrellas),
+        density=float(densidad_estrellas),
+        seed=int(seed_estrellas),
+    )
 
     # Horizonte
     if mostrar_horizonte:
@@ -343,7 +418,22 @@ def make_figure(
             zorder=1,
         )
 
-    # Plot de puntos
+    # Cardinales
+    text_fx = [pe.withStroke(linewidth=3, foreground=t["ax_bg"])]
+    for lab, deg in [("N", 0), ("E", 90), ("S", 180), ("O", 270)]:
+        ax.text(
+            np.deg2rad(deg),
+            92.0,
+            lab,
+            ha="center",
+            va="center",
+            fontsize=10.5,
+            color=t["tick"],
+            path_effects=text_fx,
+            zorder=5,
+        )
+
+    # Plot de puntos (planetas)
     for p in points:
         name = p["name"]
         theta = p["theta"]
@@ -370,8 +460,6 @@ def make_figure(
     ax.set_rlim(0, rmax)
 
     # Ticks más razonables según rmax
-    # r=0 (Zénit) ... r=rmax (borde visible)
-    # Convertimos a altitud aproximada: alt = 90 - r
     tick_rs = np.linspace(0, rmax, 4)
     tick_rs = [float(x) for x in tick_rs]
     tick_labels = []
@@ -388,9 +476,6 @@ def make_figure(
     ax.set_yticklabels(tick_labels, color=t["tick"])
     ax.tick_params(colors=t["tick"])
     ax.grid(True, color=t["grid"], linestyle="--", alpha=0.28)
-
-    #ax.set_title(title, fontsize=13, color=t["text"], pad=14)
-
 
     # Etiquetas: selección + colocación sin superposición
     label_mode_norm = (modo_etiquetas or "").strip().lower()
@@ -412,15 +497,6 @@ def make_figure(
         t=t,
         min_label_sep_px=float(min_sep_px),
     )
-
-
-#    fig.suptitle(
-#        title,
-#        fontsize=13,
-#        color=t["text"],
-#        y=0.88,
-#        va="bottom"
-#    )
 
     fig.tight_layout(pad=0.5)
     return fig
