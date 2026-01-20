@@ -10,6 +10,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import streamlit as st
+import streamlit.components.v1 as components
 import matplotlib.pyplot as plt
 
 import astropy.units as u
@@ -21,6 +22,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core.sky_core import compute_altaz, make_figure, MAGS  # noqa: E402
+from core.sky_3d import build_sky_3d_html
 
 
 # Geolocalización (opcional)
@@ -231,8 +233,8 @@ def set_astro_theme() -> None:
           }}
           
           .app-footer a {{
-            color: #8BE9FD
-            text-decoration: none
+            color: #8BE9FD;
+            text-decoration: none;
             pointer-events: auto;
           }}
           
@@ -651,55 +653,74 @@ st.markdown(
 main_tab1, main_tab2 = st.tabs(["🗺️ Mapa", "📊 Datos"])
 
 with main_tab1:
+    vista_3d = st.toggle("Vista 3D (experimental)", value=False, key="vista_3d")
     location = EarthLocation(lat=lat * u.deg, lon=lon * u.deg, height=alt * u.m)
     altaz, _ = compute_altaz(t_astropy, location, nombres=st.session_state.selected_objects)
 
     plot_title = f"Cielo visible — {fmt_ar(dt_ar)}"
     modo_etq = _ui_modo_etiquetas_to_core(st.session_state.modo_etiquetas)
 
-    fig = make_figure(
-        altaz_dict=altaz,
-        title=plot_title,
-        theme="dark",
-        mostrar_horizonte=st.session_state.show_horizon,
-        rmax=float(st.session_state.zoom_rmax),
-        auto_zoom=bool(st.session_state.auto_zoom),
-        zoom_margin_deg=6.0,
-        modo_etiquetas=modo_etq,
-        max_etiquetas=int(st.session_state.max_etiquetas),
-        min_sep_px=float(st.session_state.separacion_etiquetas_px),
-        cluster_px=float(st.session_state.cluster_px),
-    )
+    if vista_3d:
+        html = build_sky_3d_html(
+            altaz_dict=altaz,
+            title=f"Cielo 3D (experimental) — {fmt_ar(dt_ar)}",
+            show_horizon=st.session_state.show_horizon,
+            show_stars=True,
+            stars_n=700 if is_mobile else 1100,
+        )
 
-    fig_inches = 7.2 if is_mobile else 8.0
-    fig.set_size_inches(fig_inches, fig_inches)
+        # Alto fijo razonable: en desktop más grande, en celu más compacto
+        height_px = 520 if is_mobile else 650
 
-    preview = io.BytesIO()
-    fig.savefig(preview, format="png", dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
-    preview.seek(0)
+        st.markdown('<div class="plot-wrap">', unsafe_allow_html=True)
+        components.html(html, height=height_px, scrolling=False)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    download = io.BytesIO()
-    fig.savefig(download, format="png", dpi=300, bbox_inches="tight", facecolor=fig.get_facecolor())
-    download.seek(0)
+    else:
+        fig = make_figure(
+            altaz_dict=altaz,
+            title=plot_title,
+            theme="dark",
+            mostrar_horizonte=st.session_state.show_horizon,
+            rmax=float(st.session_state.zoom_rmax),
+            auto_zoom=bool(st.session_state.auto_zoom),
+            zoom_margin_deg=6.0,
+            modo_etiquetas=modo_etq,
+            max_etiquetas=int(st.session_state.max_etiquetas),
+            min_sep_px=float(st.session_state.separacion_etiquetas_px),
+            cluster_px=float(st.session_state.cluster_px),
+        )
 
-    plt.close(fig)
+        fig_inches = 7.2 if is_mobile else 8.0
+        fig.set_size_inches(fig_inches, fig_inches)
 
-    st.markdown('<div class="plot-wrap">', unsafe_allow_html=True)
-    st.markdown(
-        f"<h3 style='text-align: center; margin: 0 0 0.35rem 0;'>{plot_title}</h3>",
-        unsafe_allow_html=True
-    )
-    st.image(preview.getvalue(), width="stretch")
+        preview = io.BytesIO()
+        fig.savefig(preview, format="png", dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
+        preview.seek(0)
 
-    fname = f"astroview_{dt_ar.strftime('%Y%m%d_%H%M%S')}.png"
-    st.download_button(
-        "⬇️ Descargar PNG (Alta Res)",
-        data=download,
-        file_name=fname,
-        mime="image/png",
-        width="stretch",
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+        download = io.BytesIO()
+        fig.savefig(download, format="png", dpi=300, bbox_inches="tight", facecolor=fig.get_facecolor())
+        download.seek(0)
+
+        plt.close(fig)
+
+        st.markdown('<div class="plot-wrap">', unsafe_allow_html=True)
+        st.markdown(
+            f"<h3 style='text-align: center; margin: 0 0 0.35rem 0;'>{plot_title}</h3>",
+            unsafe_allow_html=True
+        )
+        st.image(preview.getvalue(), width="stretch")
+
+        fname = f"astroview_{dt_ar.strftime('%Y%m%d_%H%M%S')}.png"
+        fname = f"astroview_{dt_ar.strftime('%Y%m%d_%H%M%S')}.png"
+        st.download_button(
+            "⬇️ Descargar PNG (Alta Res)",
+            data=download,
+            file_name=fname,
+            mime="image/png",
+            width="stretch",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
 
 with main_tab2:
     if is_mobile:
