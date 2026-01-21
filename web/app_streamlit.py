@@ -7,6 +7,7 @@ import sys
 import io
 import os
 import requests
+import base64
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -43,6 +44,15 @@ except Exception:
 
 TZ_AR = ZoneInfo("America/Argentina/Buenos_Aires")
 
+def get_local_asset_base64(file_name):
+    """Convierte una imagen de /assets a Base64."""
+    path = Path(__file__).parent.parent/"assets"/file_name
+    if not path.exists():
+        return ""
+    encoded = base64.b64encode(path.read_bytes()).decode()
+    print(path)
+    print(encoded)
+    return f"data:image/png;base64,{encoded}"
 
 def fmt_ar(dt: datetime) -> str:
     return dt.astimezone(TZ_AR).strftime("%d-%m-%Y %H:%M:%S")
@@ -663,13 +673,35 @@ with main_tab1:
     modo_etq = _ui_modo_etiquetas_to_core(st.session_state.modo_etiquetas)
 
     if vista_3d:
+        # 1. Preparar texturas
+        tex_map = {
+            "Sol": get_local_asset_base64("sun.png"),
+            "Luna": get_local_asset_base64("moon.png"),
+            "Mercurio": get_local_asset_base64("mercury.png"),
+            "Venus": get_local_asset_base64("venus.png"),
+            "Marte": get_local_asset_base64("mars.png"),
+            "Júpiter": get_local_asset_base64("jupiter.png"),
+            "Saturno": get_local_asset_base64("saturn.png"),
+            "Urano": get_local_asset_base64("uranus.png"),
+            "Neptuno": get_local_asset_base64("neptune.png"),
+            "MilkyWay": get_local_asset_base64("milkyway.png")
+        }
+        print(tex_map)
+
+        # 2. Calcular Tiempo Sidéreo Local (LST) para la Vía Láctea
+        location = EarthLocation(lat=lat * u.deg, lon=lon * u.deg, height=alt * u.m)
+        t_astropy = Time(t_utc)
+        lst = t_astropy.sidereal_time('mean', longitude=location.lon)
+
+        # 3. Generar el componente
         html = build_sky_3d_html(
             altaz_dict=altaz,
-            title=f"Cielo 3D (experimental) — {fmt_ar(dt_ar)}",
+            tex_map=tex_map,
+            lst_deg=float(lst.deg)
         )
 
         # Alto fijo razonable: en desktop más grande, en celu más compacto
-        height_px = 550 if is_mobile else 700
+        height_px = 600 if is_mobile else 850
 
         st.markdown('<div class="plot-wrap">', unsafe_allow_html=True)
         components.html(html, height=height_px, scrolling=False)

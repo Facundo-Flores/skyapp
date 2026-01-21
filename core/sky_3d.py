@@ -61,62 +61,62 @@ def _points_from_altaz(altaz_dict: Dict[str, AltAz]) -> List[dict]:
     return pts
 
 
-def build_sky_3d_html(altaz_dict, title="Cielo 3D"):
-    """
-    Versión Optimizada para Orientación:
-    - Solo acepta altaz_dict y title para evitar errores de argumentos.
-    - Implementa Grilla Altazimutal (líneas de referencia).
-    - Navegación tipo 'Survey' (bloqueo de horizonte).
-    """
+def build_sky_3d_html(altaz_dict, tex_map, lst_deg=0):
     pts = []
     for name, c in altaz_dict.items():
         alt_rad = np.deg2rad(float(c.alt.deg))
         az_rad = np.deg2rad(float(c.az.deg))
-
-        # Proyección en espacio 3D (Y es arriba):
-        # x = cos(alt) * sin(az)  -> Este
-        # y = sin(alt)           -> Cénit
-        # z = -cos(alt) * cos(az) -> Norte
-        r = 100.0
+        r = 120.0  # Radio del domo un poco más grande
         x = r * np.cos(alt_rad) * np.sin(az_rad)
         y = r * np.sin(alt_rad)
         z = -r * np.cos(alt_rad) * np.cos(az_rad)
 
         pts.append({
-            "name": name,
-            "x": float(x), "y": float(y), "z": float(z),
-            "color": "#FFFFFF"  # Color base
+            "name": name, "x": float(x), "y": float(y), "z": float(z),
+            "alt": round(float(c.alt.deg), 1),
+            "texture": tex_map.get(name, ""),
+            "radius": 6 if "Sol" in name else (4 if "Luna" in name else 1.8)
         })
 
-    data_json = json.dumps({"points": pts, "title": title})
+    data_json = json.dumps({"points": pts, "milkyway": tex_map.get("MilkyWay", ""), "lst": lst_deg})
 
     return f"""
 <!doctype html>
 <html>
 <head>
     <style>
-        body, html {{ margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #05080f; }}
+        body, html {{ margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }}
         #wrap {{ width: 100%; height: 100%; position: relative; }}
-        .label-cardinal {{ color: #ff5555; font-family: monospace; font-weight: bold; font-size: 26px; }}
-        .label-obj {{ color: #00ffcc; font-family: sans-serif; font-size: 11px; background: rgba(0,0,0,0.7); padding: 2px 5px; border-radius: 4px; }}
+        .ui {{ position: absolute; top: 10px; right: 10px; z-index: 100; }}
+        .btn {{ background: rgba(0,0,0,0.7); color: white; border: 1px solid #555; padding: 8px; cursor: pointer; border-radius: 4px; }}
+        .label-obj {{ color: #00ffcc; font-family: sans-serif; font-size: 11px; text-shadow: 1px 1px 2px #000; pointer-events: none; }}
     </style>
     <script type="importmap">
     {{ "imports": {{ "three": "https://unpkg.com/three@0.161.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.161.0/examples/jsm/" }} }}
     </script>
 </head>
 <body>
-    <div id="wrap"></div>
+    <div id="wrap">
+        <div class="ui"><button class="btn" id="res">Reiniciar Vista</button></div>
+    </div>
+
     <script type="module">
         import * as THREE from 'three';
         import {{ CSS2DRenderer, CSS2DObject }} from 'three/addons/renderers/CSS2DRenderer.js';
 
         const DATA = {data_json};
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 1.6, 0); 
 
-        const renderer = new THREE.WebGLRenderer({{ antialias: true }});
+        const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 2000);
+        camera.position.set(0, 1.6, 0);
+
+        const renderer = new THREE.WebGLRenderer({{ antialias: false, powerPreference: "high-performance" }});
         renderer.setSize(window.innerWidth, window.innerHeight);
+
+        // --- ARREGLO DE COLOR Y GPU ---
+        renderer.setPixelRatio(1); // Forzar 1 para bajar uso de GPU
+        renderer.outputColorSpace = THREE.SRGBColorSpace; // Arregla texturas blancas/lavadas
+
         document.getElementById('wrap').appendChild(renderer.domElement);
 
         const labelRenderer = new CSS2DRenderer();
@@ -125,69 +125,70 @@ def build_sky_3d_html(altaz_dict, title="Cielo 3D"):
         labelRenderer.domElement.style.top = '0';
         document.getElementById('wrap').appendChild(labelRenderer.domElement);
 
-        // --- REFERENCIAS DE ORIENTACIÓN (ESTILO STELLARIUM) ---
+        const loader = new THREE.TextureLoader();
 
-        // 1. El Suelo (Evita la sensación de vacío)
-        const ground = new THREE.Mesh(
-            new THREE.CircleGeometry(150, 64),
-            new THREE.MeshBasicMaterial({{ color: 0x080a10, side: THREE.DoubleSide }})
-        );
-        ground.rotation.x = -Math.PI / 2;
-        scene.add(ground);
+        // --- FONDO ESTELAR MATEMÁTICO (Sin imagen pesada) ---
+        const starPos = [];
+        for(let i=0; i<2500; i++) {{
+            const r = 600;
+            const theta = 2 * Math.PI * Math.random();
+            const phi = Math.acos(2 * Math.random() - 1);
+            starPos.push(r*Math.sin(phi)*Math.cos(theta), Math.abs(r*Math.sin(phi)*Math.sin(theta)), r*Math.cos(phi));
+        }}
+        const starGeo = new THREE.BufferGeometry();
+        starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+        scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({{ color: 0xffffff, size: 0.7 }})));
 
-        // 2. Grilla Altazimutal (Círculos de altura cada 30°)
-        const gridMat = new THREE.LineBasicMaterial({{ color: 0x1e293b, transparent: true, opacity: 0.5 }});
-        for (let a = 0; a <= 90; a += 30) {{
-            const radius = 100 * Math.cos(a * Math.PI / 180);
-            const y = 100 * Math.sin(a * Math.PI / 180);
-            const points = [];
-            for (let i = 0; i <= 64; i++) {{
-                const th = (i / 64) * Math.PI * 2;
-                points.push(new THREE.Vector3(Math.cos(th) * radius, y, Math.sin(th) * radius));
-            }}
-            scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), gridMat));
+        // --- CARGAR VÍA LÁCTEA ---
+        if(DATA.milkyway) {{
+            loader.load(DATA.milkyway, (t) => {{
+                t.colorSpace = THREE.SRGBColorSpace;
+                const sky = new THREE.Mesh(
+                    new THREE.SphereGeometry(700, 32, 32),
+                    new THREE.MeshBasicMaterial({{ map: t, side: THREE.BackSide, transparent: true, opacity: 0.4 }})
+                );
+                sky.rotation.y = THREE.MathUtils.degToRad(DATA.lst);
+                scene.add(sky);
+            }});
         }}
 
-        // 3. Brújula (N, E, S, O)
-        const cardinals = [{{t:'N',az:0}}, {{t:'E',az:90}}, {{t:'S',az:180}}, {{t:'O',az:270}}];
-        cardinals.forEach(c => {{
-            const div = document.createElement('div');
-            div.className = 'label-cardinal'; div.textContent = c.t;
-            const obj = new CSS2DObject(div);
-            const r = c.az * Math.PI / 180;
-            obj.position.set(Math.sin(r)*110, 0, -Math.cos(r)*110);
-            scene.add(obj);
-        }});
-
-        // --- DIBUJAR OBJETOS ---
+        // --- OBJETOS CON TEXTURA ---
         DATA.points.forEach(p => {{
-            const mesh = new THREE.Mesh(
-                new THREE.SphereGeometry(0.8, 8, 8),
-                new THREE.MeshBasicMaterial({{ color: 0xffffff }})
-            );
-            mesh.position.set(p.x, p.y, p.z);
-            scene.add(mesh);
+            // Geometría reducida (16x16) para ahorrar GPU
+            const geo = new THREE.SphereGeometry(p.radius, 16, 16);
 
-            const div = document.createElement('div');
-            div.className = 'label-obj'; div.textContent = p.name;
-            const l = new CSS2DObject(div);
-            l.position.set(0, 1.5, 0);
-            mesh.add(l);
+            if(p.texture) {{
+                loader.load(p.texture, (t) => {{
+                    t.colorSpace = THREE.SRGBColorSpace; // IMPORTANTE: Corrige el "blanco"
+                    const mat = new THREE.MeshBasicMaterial({{ map: t, transparent: true }});
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.set(p.x, p.y, p.z);
+                    mesh.rotation.y = Math.PI;
+                    scene.add(mesh);
+
+                    const div = document.createElement('div');
+                    div.className = 'label-obj'; div.innerHTML = `<b>${{p.name}}</b><br>${{p.alt}}°`;
+                    const l = new CSS2DObject(div);
+                    l.position.set(0, p.radius + 2, 0);
+                    mesh.add(l);
+                }});
+            }}
         }});
 
-        // --- NAVEGACIÓN TIPO OBSERVADOR ---
-        let lon = 0, lat = 0;
+        // --- NAVEGACIÓN ---
+        let lon = 0, lat = 10;
+        document.getElementById('res').onclick = () => {{ lon = 0; lat = 10; }};
         document.addEventListener('pointermove', (e) => {{
             if (e.buttons === 1) {{
                 lon -= e.movementX * 0.15;
-                lat = Math.max(-80, Math.min(85, lat - e.movementY * 0.15));
+                lat = Math.max(-85, Math.min(85, lat - e.movementY * 0.15));
             }}
         }});
 
         function animate() {{
             requestAnimationFrame(animate);
-            const phi = (90 - lat) * Math.PI / 180;
-            const theta = lon * Math.PI / 180;
+            const phi = THREE.MathUtils.degToRad(90 - lat);
+            const theta = THREE.MathUtils.degToRad(lon);
             const target = new THREE.Vector3();
             target.setFromSphericalCoords(1, phi, theta);
             camera.lookAt(camera.position.clone().add(target));
