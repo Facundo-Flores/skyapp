@@ -1,3 +1,5 @@
+# app_streamlit.py
+
 from __future__ import annotations
 from pathlib import Path
 
@@ -664,13 +666,10 @@ with main_tab1:
         html = build_sky_3d_html(
             altaz_dict=altaz,
             title=f"Cielo 3D (experimental) — {fmt_ar(dt_ar)}",
-            show_horizon=st.session_state.show_horizon,
-            show_stars=True,
-            stars_n=700 if is_mobile else 1100,
         )
 
         # Alto fijo razonable: en desktop más grande, en celu más compacto
-        height_px = 520 if is_mobile else 650
+        height_px = 550 if is_mobile else 700
 
         st.markdown('<div class="plot-wrap">', unsafe_allow_html=True)
         components.html(html, height=height_px, scrolling=False)
