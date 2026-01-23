@@ -27,10 +27,10 @@ if str(ROOT) not in sys.path:
 from core.sky_core import compute_altaz, make_figure, MAGS  # noqa: E402
 from core.sky_3d import build_sky_3d_html
 
-
 # Geolocalización (opcional)
 try:
     from streamlit_geolocation import streamlit_geolocation
+
     GEO_OK = True
 except Exception:
     GEO_OK = False
@@ -38,21 +38,24 @@ except Exception:
 # Autorefresh (opcional)
 try:
     from streamlit_autorefresh import st_autorefresh
+
     AUTOREFRESH_OK = True
 except Exception:
     AUTOREFRESH_OK = False
 
 TZ_AR = ZoneInfo("America/Argentina/Buenos_Aires")
 
+
+@st.cache_resource
 def get_local_asset_base64(file_name):
     """Convierte una imagen de /assets a Base64."""
-    path = Path(__file__).parent.parent/"assets"/file_name
+    path = Path(__file__).parent.parent / "assets" / file_name
     if not path.exists():
         return ""
     encoded = base64.b64encode(path.read_bytes()).decode()
-    print(path)
     print(encoded)
     return f"data:image/png;base64,{encoded}"
+
 
 def fmt_ar(dt: datetime) -> str:
     return dt.astimezone(TZ_AR).strftime("%d-%m-%Y %H:%M:%S")
@@ -93,7 +96,6 @@ def detectar_mobile() -> bool:
     return False
 
 
-
 def get_bdc_key() -> str | None:
     key = None
     try:
@@ -124,10 +126,10 @@ def reverse_geocode_bigdatacloud(lat_q: float, lon_q: float, locality_language: 
 
 def build_place_label(payload: dict) -> str:
     locality = (
-        payload.get("locality")
-        or payload.get("city")
-        or payload.get("localityInfo", {}).get("administrative", [{}])[0].get("name")
-        or ""
+            payload.get("locality")
+            or payload.get("city")
+            or payload.get("localityInfo", {}).get("administrative", [{}])[0].get("name")
+            or ""
     )
     province = payload.get("principalSubdivision") or ""
     country = payload.get("countryName") or ""
@@ -323,8 +325,6 @@ def set_astro_theme() -> None:
     )
 
 
-
-
 def _ui_modo_etiquetas_to_core(value: str) -> str:
     m = {
         "Inteligentes": "inteligentes",
@@ -489,7 +489,8 @@ def render_controles(prefix: str) -> dict:
 
         max_etiquetas = int(draft["max_etiquetas"])
         if modo_etiquetas == "Top (más brillantes)":
-            max_etiquetas = st.slider("Cantidad de etiquetas", 1, 7, int(draft["max_etiquetas"]), key=f"{prefix}_max_etiquetas")
+            max_etiquetas = st.slider("Cantidad de etiquetas", 1, 7, int(draft["max_etiquetas"]),
+                                      key=f"{prefix}_max_etiquetas")
 
         with st.expander("Ajustes finos de etiquetas", expanded=False):
             separacion_etiquetas_px = st.slider(

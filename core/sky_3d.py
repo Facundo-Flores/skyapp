@@ -122,7 +122,7 @@ def build_sky_3d_html(altaz_dict, tex_map, lst_deg=0):
 
         /* Etiquetas */
         .label-obj {{ color: #fff; font-family: sans-serif; font-size: 11px; background: rgba(0,0,0,0.7); padding: 2px 5px; border-radius: 3px; pointer-events: none; }}
-        .label-cardinal {{ color: #ff3333; font-family: sans-serif; font-weight: bold; font-size: 28px; pointer-events: none; }}
+        .label-cardinal {{ color: #FFD700; font-family: 'Orbitron', sans-serif; font-weight: bold; font-size: 28px; pointer-events: none; }}
 
         /* Visor central */
         #crosshair {{
