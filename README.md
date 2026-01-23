@@ -1,4 +1,4 @@
-# 🌌 SkyMap — El cielo en tu navegador
+# 🌌 SkyMap — El cielo
 
 **SkyMap** es una aplicación de astronomía hecha con Python que te permite ver qué hay arriba tuyo en tiempo real (o en cualquier momento que elijas). Podés seguir al Sol, la Luna y los planetas con precisión científica, ya sea desde la compu o con el celu en la mano mientras mirás las estrellas.
 
