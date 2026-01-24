@@ -1,6 +1,8 @@
 # app_streamlit.py
 
 from __future__ import annotations
+
+import concurrent.futures
 from pathlib import Path
 
 import sys
@@ -46,7 +48,6 @@ except Exception:
 TZ_AR = ZoneInfo("America/Argentina/Buenos_Aires")
 
 
-@st.cache_resource
 def get_local_asset_base64(file_name):
     """Convierte una imagen de /assets a Base64."""
     path = Path(__file__).parent.parent / "assets" / file_name
@@ -55,6 +56,45 @@ def get_local_asset_base64(file_name):
     encoded = base64.b64encode(path.read_bytes()).decode()
     print(encoded)
     return f"data:image/png;base64,{encoded}"
+
+
+@st.cache_resource
+def load_all_textures_parallel():
+    # Defino mapa de nombres y archivos
+    assets_to_load = {
+        "Sol": "sun.png",
+        "Luna": "moon.png",
+        "Mercurio": "mercury.png",
+        "Venus": "venus.png",
+        "Marte": "mars.png",
+        "Júpiter": "jupiter.png",
+        "Saturno": "saturn.png",
+        "Urano": "uranus.png",
+        "Neptuno": "neptune.png",
+        "MilkyWay": "milkyway.png"
+    }
+
+    def load_task(name, file_name):
+        # Devuelvo una tupla para reconstruir el mapa después
+        return name, get_local_asset_base64(file_name)
+
+    tex_map = {}
+
+    # Uso ThreadPoolExecutor para cargas simultáneas
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Lista de tareas
+        futures = [executor.submit(load_task, name, file) for name, file in assets_to_load.items()]
+
+        # Recolectar resultados a medida que se van completando
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                name, b64_data = future.result()
+                tex_map[name] = b64_data
+            except Exception as e:
+                st.error(f"Error cargando {name}: {e}")
+                tex_map[name] = ""
+
+    return tex_map
 
 
 def fmt_ar(dt: datetime) -> str:
@@ -675,18 +715,7 @@ with main_tab1:
 
     if vista_3d:
         # 1. Preparar texturas
-        tex_map = {
-            "Sol": get_local_asset_base64("sun.png"),
-            "Luna": get_local_asset_base64("moon.png"),
-            "Mercurio": get_local_asset_base64("mercury.png"),
-            "Venus": get_local_asset_base64("venus.png"),
-            "Marte": get_local_asset_base64("mars.png"),
-            "Júpiter": get_local_asset_base64("jupiter.png"),
-            "Saturno": get_local_asset_base64("saturn.png"),
-            "Urano": get_local_asset_base64("uranus.png"),
-            "Neptuno": get_local_asset_base64("neptune.png"),
-            "MilkyWay": get_local_asset_base64("milkyway.png")
-        }
+        tex_map = load_all_textures_parallel()
         print(tex_map)
 
         # 2. Calcular Tiempo Sidéreo Local (LST) para la Vía Láctea
