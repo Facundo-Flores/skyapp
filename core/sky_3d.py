@@ -232,7 +232,7 @@ def build_sky_3d_html(altaz_dict, tex_map, lst_deg=0):
             scene.add(obj);
         }});
 
-        // --- 3. PLANETAS (INTERACTIVOS) ---
+        // --- 3. PLANETAS INTERACTIVOS ---
         const planetMeshes = [];
         DATA.points.forEach(p => {{
             const geo = new THREE.SphereGeometry(p.radius, 16, 16);
@@ -256,7 +256,7 @@ def build_sky_3d_html(altaz_dict, tex_map, lst_deg=0):
             mesh.add(l);
         }});
 
-        // --- 4. LÓGICA DE NAVEGACIÓN (MOBILE OPTIMIZED) ---
+        // --- 4. LÓGICA DE NAVEGACIÓN ---
         let lon = 0, lat = 0, tLon = 0, tLat = 0, tFov = 60, isAnim = false;
         let isPointerDown = false, pointerX = 0, pointerY = 0, startX = 0, startY = 0, lastDist = 0;
 
@@ -288,7 +288,7 @@ def build_sky_3d_html(altaz_dict, tex_map, lst_deg=0):
             if (!isPointerDown) return;
             isPointerDown = false;
 
-            // RAYCASTING: Detectar si fue un toque rápido para centrar
+            // Detectar si fue un toque rápido para centrar
             const moveDist = Math.hypot(e.clientX - startX, e.clientY - startY);
             if (moveDist < 5) {{
                 mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -302,7 +302,7 @@ def build_sky_3d_html(altaz_dict, tex_map, lst_deg=0):
             }}
         }});
 
-        // Pinch Zoom para Mobile
+        // Pinch zoom
         wrap.addEventListener('touchmove', (e) => {{
             if (e.touches.length === 2) {{
                 const d = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
