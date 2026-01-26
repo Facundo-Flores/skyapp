@@ -54,7 +54,6 @@ def get_local_asset_base64(file_name):
     if not path.exists():
         return ""
     encoded = base64.b64encode(path.read_bytes()).decode()
-    print(encoded)
     return f"data:image/png;base64,{encoded}"
 
 
@@ -716,7 +715,6 @@ with main_tab1:
     if vista_3d:
         # 1. Preparar texturas
         tex_map = load_all_textures_parallel()
-        print(tex_map)
 
         # 2. Calcular Tiempo Sidéreo Local (LST) para la Vía Láctea
         location = EarthLocation(lat=lat * u.deg, lon=lon * u.deg, height=alt * u.m)
