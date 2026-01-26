@@ -1,8 +1,8 @@
-# 🌌 SkyMap — El cielo
+# 🌌 SkyMap — un mapa del cielo
 
-**SkyMap** es una aplicación de astronomía hecha con Python que te permite ver qué hay arriba tuyo en tiempo real (o en cualquier momento que elijas). Podés seguir al Sol, la Luna y los planetas con precisión científica, ya sea desde la compu o con el celu en la mano mientras mirás las estrellas.
+**SkyMap** es una aplicación de astronomía hecha con Python que te muestra las ubicaciones del Sol, la Luna y los planetas en tiempo real.
 
-La app usa **Astropy** para los cálculos de efemérides, así que los datos son posta.
+La app usa **Astropy** para los cálculos.
 
 ---
 
@@ -52,7 +52,7 @@ streamlit run app/app_streamlit.py
 
 app_streamlit.py: La cara visible. Maneja los tabs, los inputs y la lógica de Streamlit.
 
-core/sky_core.py: Donde pasa la magia de los cálculos astronómicos y el gráfico 2D.
+core/sky_core.py: Donde se hacen los cálculos astronómicos y el gráfico 2D.
 
 core/sky_3d.py: Genera el HTML y el JS necesario para el visor WebGL.
 
@@ -60,6 +60,5 @@ assets/: Texturas para que los planetas en 3D no sean simples esferas blancas.
 
 
 ## 🤝 Créditos
-Hecho con mucha paciencia y muchos termos de mate. Los datos astronómicos son gracias a la comunidad de Astropy.
-
-Si te gustó, ¡tirale una ⭐ al repo!
+La idea surgió luego de una charla entusiasta, el 22/12/2025. 
+Los datos astronómicos son gracias a la comunidad de Astropy.
