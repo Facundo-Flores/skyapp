@@ -272,7 +272,7 @@ def set_astro_theme() -> None:
             color: {text} !important;
             border-bottom-color: {primary_a} !important;
           }}
-          
+
           /* Footer sutil */
           .app-footer {{
             position: fixed;
@@ -284,13 +284,13 @@ def set_astro_theme() -> None:
             color: rgba(226, 232, 240, 0.55);
             pointer-events: auto;
           }}
-          
+
           .app-footer a {{
             color: #8BE9FD;
             text-decoration: none;
             pointer-events: auto;
           }}
-          
+
           .app-footer a:hover {{
             text-decoration: underline;
             opacity: 1.0;
