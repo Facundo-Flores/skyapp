@@ -596,7 +596,7 @@ set_astro_theme()
 st.markdown(
     """
     <div class="app-footer">
-      hecho con <a href="https://www.astropy.org" target="_blank">Astropy</a> y paciencia
+      hecho con <a href="https://www.astropy.org" target="_blank">Astropy</a>, <a href="https://claude.com" tagret="_blank">Claude</a> y paciencia
     </div>
     """,
     unsafe_allow_html=True,
